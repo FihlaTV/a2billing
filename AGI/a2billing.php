@@ -116,6 +116,8 @@ $A2B->load_conf($agi, NULL, 0, $idconfig, $optconfig);
 $A2B->mode = $mode;
 $A2B->G_startime = $G_startime;
 
+
+
 $A2B->debug(INFO, $agi, __FILE__, __LINE__, "IDCONFIG : $idconfig");
 $A2B->debug(INFO, $agi, __FILE__, __LINE__, "MODE : $mode");
 
@@ -140,9 +142,88 @@ if (!$A2B->DbConnect()) {
     exit;
 }
 
+/* BEGIN */
+
 define("WRITELOG_QUERY", true);
 $instance_table = new Table();
 $A2B->set_instance_table($instance_table);
+
+/* GET DIVERSION HEADER */
+
+$DIVERSION_HEADER = $agi->get_variable("SIP_HEADER(TO)");
+$agi->verbose("DIVERSION HEADER: " . $DIVERSION_HEADER["data"]);
+
+// Just get the number portion of the Diversion Header
+preg_match('/sip:(\d+)@/', $DIVERSION_HEADER["data"], $m );
+
+$DIVERSION_NUMBER = $m[1];
+
+$agi->verbose("DIVERSION_NUMBER: " . $DIVERSION_NUMBER);
+
+/* GET THE FROM HEADER */
+
+$FROM_HEADER = $agi->get_variable("SIP_HEADER(FROM)");
+$agi->verbose("FROM HEADER: " . $FROM_HEADER["data"]);
+
+// Just get the number portion of the Diversion Header
+preg_match('/sip:(\d+)@/', $FROM_HEADER["data"], $m );
+
+$FROM_NUMBER = $m[1];
+
+/* CHECK IF DIVERSION HEADER (CONTAINS TO) IS A CUSTOMER */
+
+$QUERY = "select * from cc_callerid, cc_card where cc_card.id=cc_callerid.id_cc_card and cid='" . $DIVERSION_NUMBER . "'";
+$result = $A2B->instance_table->SQLExec($A2B->DBHandle, $QUERY, 1, 300);
+
+if (is_array($result)) {
+    $num_cur = count($result);
+        $credit = $result[0]['credit'];
+        $A2B->write_log("Found: $DIVERSION_NUMBER belongs to an active customer with a credit of $credit", 0);
+
+        if ($credit <= 0)
+                $agi->exec("Dial", "SIP/telcobridges/57" . $DIVERSION_NUMBER);
+
+}
+else { //Not a valid Blue Wireless Number
+        $A2B->write_log("To Not Found: $DIVERSION_NUMBER is NOT a Blue Wireless number", 0);
+        $agi->exec("Dial", "SIP/telcobridges/57" . $DIVERSION_NUMBER);
+
+}
+
+/* CHECK IF FROM HEADER CUSTOMER */
+
+$QUERY = "select * from cc_callerid, cc_card where cc_card.id=cc_callerid.id_cc_card and cid='" . $FROM_NUMBER . "'";
+$result = $A2B->instance_table->SQLExec($A2B->DBHandle, $QUERY, 1, 300);
+
+if (is_array($result)) {
+    $num_cur = count($result);
+        $credit = $result[0]['credit'];
+        $A2B->write_log("Found: $FROM_NUMBER belongs to an active customer with a credit of $credit", 0);
+
+        if ($credit <= 0)
+                $agi->exec("Dial", "SIP/telcobridges/57" . $DIVERSION_NUMBER);
+
+    /*for ($i = 0; $i < $num_cur; $i++) {
+        $currencies_list[$result[$i][1]] = array(1=>$result[$i][2], 2=>$result[$i][3]);
+    }*/
+}
+else { //Not a valid Blue Wireless Number
+        $A2B->write_log("FROM Not Found: $FROM_NUMBER is NOT a Blue Wireless number", 0);
+
+}
+
+/* SET THE CALLUP TO HIT THE RATE ENGINE  */
+
+#$A2B->dnid = "123456789";
+#$A2B->orig_dnid = "123456789";
+#$A2B->destination = "123456789";
+#$A2B->extension = "123456789";
+
+// Prefix a 1 to the To number
+$A2B->orig_ext = "1" . $DIVERSION_NUMBER;
+
+/* END */
+
 
 //GET CURRENCIES FROM DATABASE
 $QUERY = "SELECT id, currency, name, value FROM cc_currencies ORDER BY id";
