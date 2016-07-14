@@ -1199,6 +1199,39 @@ class RateEngine
             $A2B->debug(DEBUG, $agi, __FILE__, __LINE__, "[CC_asterisk_stop 1.2: SQL: $QUERY]");
             $result = $A2B->instance_table->SQLExec($A2B->DBHandle, $QUERY, 0);
 
+/* BEGIN */
+
+
+	    /* Decrement the account of the FROM user if they are are Blue Wireless Customer */
+
+	   //Check if the FROM number is a Blue Wireless Customer.  
+
+	   $FROM_HEADER = $agi->get_variable("SIP_HEADER(FROM)");
+	   #$agi->verbose("FROM HEADER: " . $FROM_HEADER["data"]);
+
+	   // Just get the number portion of the Diversion Header
+	   preg_match('/sip:(\d+)@/', $FROM_HEADER["data"], $m );
+
+	   $FROM_NUMBER = $m[1];
+
+	   $QUERY = "select * from cc_callerid, cc_card where cc_card.id=cc_callerid.id_cc_card and cid='" . $FROM_NUMBER . "'";
+	   $result = $A2B->instance_table->SQLExec($A2B->DBHandle, $QUERY, 1, 300);
+
+	   if (is_array($result)) {
+	      	
+		$from_accountcode = $result[0]['username'];
+
+	    	$QUERY = "UPDATE cc_card SET credit = credit$signe" . a2b_round(abs($cost)) . " $myclause_nodidcall, lastuse = now(), nbused = nbused + 1 WHERE username = '" . $from_accountcode . "'";
+	    
+		$A2B->debug(DEBUG, $agi, __FILE__, __LINE__, "[CC_asterisk_stop 1.2: SQL: $QUERY]");
+            	$result = $A2B->instance_table->SQLExec($A2B->DBHandle, $QUERY, 0);
+	   }
+
+
+/* END */
+
+
+
             $QUERY = "UPDATE cc_trunk SET secondusedreal = secondusedreal + $sessiontime WHERE id_trunk = '" . $this->usedtrunk . "'";
             $A2B->debug(DEBUG, $agi, __FILE__, __LINE__, $QUERY);
             $result = $A2B->instance_table->SQLExec($A2B->DBHandle, $QUERY, 0);
