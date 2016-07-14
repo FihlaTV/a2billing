@@ -178,6 +178,9 @@ $result = $A2B->instance_table->SQLExec($A2B->DBHandle, $QUERY, 1, 300);
 if (is_array($result)) {
     $num_cur = count($result);
         $credit = $result[0]['credit'];
+	
+	// Grab the account number based on the DID within the Diversion Header
+	$A2B->accountcode = $result[0]['username'];
         $A2B->write_log("Found: $DIVERSION_NUMBER belongs to an active customer with a credit of $credit", 0);
 
         if ($credit <= 0)
@@ -212,6 +215,8 @@ else { //Not a valid Blue Wireless Number
 
 }
 
+
+
 /* SET THE CALLUP TO HIT THE RATE ENGINE  */
 
 #$A2B->dnid = "123456789";
@@ -220,7 +225,30 @@ else { //Not a valid Blue Wireless Number
 #$A2B->extension = "123456789";
 
 // Prefix a 1 to the To number
-$A2B->orig_ext = "1" . $DIVERSION_NUMBER;
+$A2B->orig_ext = $DIVERSION_NUMBER;
+#$A2B->orig_ext = "9475176566";
+
+// Functions for Blue Wireless Implementation
+
+function getAccountNumber($DID) {
+
+	global $A2B;
+
+
+	$instance_table = new Table();
+	$A2B->set_instance_table($instance_table);
+
+	$QUERY = "select * from cc_callerid, cc_card where cc_card.id=cc_callerid.id_cc_card and cid='" . $DID . "'";
+	$result = $A2B->instance_table->SQLExec($A2B->DBHandle, $QUERY, 1, 300);
+
+	if (is_array($result)) {
+        	$accountNumber = $result[0]['username'];
+		return $accountNumber;
+
+	return FALSE; // If the account number is not found
+
+	}
+}
 
 /* END */
 
